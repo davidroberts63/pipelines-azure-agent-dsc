@@ -29,11 +29,7 @@ if($Locally) {
     }
     New-Item -Type Directory $path -Force | Out-Null
     Register-PSRepository -Name $name -SourceLocation $path -PublishLocation $path -InstallationPolicy Trusted
-
-    # Note, the case in the folder name specified here affects how it's put into the repository.
-    # So leave it as is. Why? I don't know but it's really annoying.
     Publish-Module -Path $PSScriptRoot\pipelinesazureagent -Repository $name
-
     Unregister-PSRepository -Name $name
 
     Write-Host "Published locally to $path"
