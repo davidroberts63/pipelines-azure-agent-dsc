@@ -4,7 +4,7 @@
 RootModule = 'PipelinesAzureAgent.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.1.2'
+ModuleVersion = '0.1.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -93,13 +93,13 @@ PrivateData = @{
         LicenseUri = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
 
         # A URL to the main website for this project.
-        # ProjectUri = 'https://github.com/davidroberts63/pipelines-azure-agent-dsc'
+        ProjectUri = 'https://github.com/davidroberts63/pipelines-azure-agent-dsc'
 
         # A URL to an icon representing this module.
         # IconUri = ''
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'Initial release with basic ability for configuring agents'
+        ReleaseNotes = 'Specification of project uri.'
 
         # Prerelease string of this module
         # Prerelease = ''
