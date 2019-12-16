@@ -29,6 +29,7 @@ class PipelinesAzureAgent {
 
     [PipelinesAzureAgent] Get()
     {
+        # Assume an empty (non-existent) agent.
         $result = [PipelinesAzureAgent]::new()
 
         Write-Verbose "Getting list of existing agents."
@@ -36,15 +37,23 @@ class PipelinesAzureAgent {
         Write-Verbose "Found $($agents.Name -join ',')"
 
         $thisOne = $agents | Where-Object {
-            $parts = $_.Name -split '\.' # Windows service name is 'vstsagent.[devops instance name].[agent name]
+            # Windows service name is 'vstsagent.[devops instance name].[agent name]
+            $parts = $_.Name -split '\.'
             return $parts[1] -eq $DevOpsInstanceName -and $parts[2] -eq $Name
         }
 
         if($thisOne) {
             Write-Verbose 'Found this agent'
             Write-Verbose 'Getting agent config data'
+
+            # Determining the folder path where the agent exe and config data resides.
+            # Take out double quotes because service PathName property can be enclosed
+            # in double quotes (which honestly is annoying in a string variable).
             $base = Split-Path $thisOne.PathName.Replace('"','') -Parent
             $parent = Split-Path $base -Parent
+
+            # Get some of the config data from that agent install and populate the
+            # result to get it to match the installed agent as much as possible.
             $agentConfigPath = Join-Path $parent '.agent'
             $config = ConvertFrom-Json (Get-Content -Path $agentConfigPath | Out-String)
 
@@ -57,12 +66,15 @@ class PipelinesAzureAgent {
 
     [bool] Test()
     {
+        # For now simple name check. But should expand this to also include other
+        # properties such as server url.
         $state = $this.Get()
         return $state.Name -eq $this.Name
     }
 
     [void] Set()
     {
+        # Some environments may not have newer TLS enabled by default, so force it here.
         $agentZipPath = (Join-Path $ENV:TEMP ([System.GUID]::NewGuid().Guid)) + '.zip'
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
         Write-Verbose 'Downloading agent'
