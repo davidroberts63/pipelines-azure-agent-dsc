@@ -3,13 +3,13 @@ class PipelinesAzureAgent {
     [DscProperty(Key)]
     [String] $Name
 
-    [DscProperty(Mandatory)]
+    [DscProperty(Mandatory, Key)]
     [String] $DevOpsInstanceURL
 
     [DscProperty(Mandatory)]
     [String] $DevOpsInstanceName
 
-    [DscProperty(Mandatory)]
+    [DscProperty(Mandatory, Key)]
     [String] $PoolName
 
     [DscProperty()]
@@ -24,8 +24,17 @@ class PipelinesAzureAgent {
     [DscProperty()]
     [PSCredential] $Token
 
-    [DscProperty()]
+    [DscProperty(Mandatory)]
     [String] $AgentDownloadUrl
+
+    [DscProperty()]
+    [Boolean] $RunAsService
+
+    [DscProperty()]
+    [Boolean] $RunAsAutoLogon
+
+    [DscProperty()]
+    [PScredential] $WindowsLogonAccount
 
     [PipelinesAzureAgent] Get()
     {
@@ -73,22 +82,43 @@ class PipelinesAzureAgent {
         Expand-Archive -LiteralPath $agentZipPath -DestinationPath $agentPath -Force
         Remove-Item $agentZipPath -Force
 
-        Write-Verbose 'Configuring agent'
+        Write-Verbose 'Building configuration arguments'
         $cmdArgs = @(
-            '--sslcacert', $this.CertificateBundlePath,
             '--url', $this.DevOpsInstanceURL,
             '--pool', "`"$($this.PoolName)`"",
             '--replace',
             '--agent', $this.Name,
             '--auth', $this.Authentication,
-            '--runAsService',
             '--unattended'
         )
 
+        if($this.CertificateBundlePath) {
+            $cmdArgs += '--sslcacert', $this.CertificateBundlePath
+        }
+        if($this.WindowsLogonAccount) {
+            $cmdArgs += '--windowsLogonAccount', $this.WindowsLogonAccount.Username
+        }
+        if($this.RunAsService) {
+            $cmdArgs += '--runAsService'
+        }
+        if($this.RunAsAutoLogon) {
+            $cmdArgs += '--runAsAutoLogon'
+        }
+
         $cmdArgs | ConvertTo-Json | Out-String | Write-Verbose
-        $cmdArgs += '--token', $this.Token.GetNetworkCredential().Password # Exclude sensitive data from logs.
+
+        # Exclude sensitive data from logs.
+        if($this.Authentication -eq 'pat') {
+            $cmdArgs += '--token', $this.Token.GetNetworkCredential().Password
+        }
+        if($this.WindowsLogonAccount) {
+            $cmdArgs += '--windowsLogonPassword', $this.WindowsLogonAccount.GetNetworkCredential().Password
+        }
+        # End of sensitive data exclusion from logs.
+
         $cmdArgs += '2>&1' # Redirect the errors to the standard output for capturing and logging.
 
+        Write-Verbose 'Configuring agent'
         $outputLogPath = (Join-Path $ENV:TEMP ([System.GUID]::NewGuid().Guid)) + '.txt'
         Start-Process -FilePath $AgentPath/config.cmd -ArgumentList $cmdArgs -Wait -NoNewWindow -RedirectStandardOutput $outputLogPath
         Get-Content -Path $outputLogPath | Write-Verbose
