@@ -46,12 +46,13 @@ class PipelinesAzureAgent {
 
         $thisOne = $agents | Where-Object {
             $parts = $_.Name -split '\.' # Windows service name is 'vstsagent.[devops instance name].[agent name]
-            return $parts[1] -eq $DevOpsInstanceName -and $parts[2] -eq $Name
+            return $parts[1] -eq $DevOpsInstanceName -and $parts[2] -eq $PoolName -and $parts[3] -eq $Name
         }
 
         if($thisOne) {
             Write-Verbose 'Found this agent'
             Write-Verbose 'Getting agent config data'
+            # Agent configuration data is in [Path to agent folder]\.agent file. It is a hidden file.
             $base = Split-Path $thisOne.PathName.Replace('"','') -Parent
             $parent = Split-Path $base -Parent
             $agentConfigPath = Join-Path $parent '.agent'
