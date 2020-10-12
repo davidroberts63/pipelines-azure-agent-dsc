@@ -4,7 +4,7 @@
 RootModule = 'PipelinesAzureAgent.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.1.3'
+ModuleVersion = '0.2.13'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -99,10 +99,10 @@ PrivateData = @{
         # IconUri = ''
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'Specification of project uri.'
+        ReleaseNotes = 'Allow specifying Windows service logon account.'
 
         # Prerelease string of this module
-        # Prerelease = ''
+        Prerelease = ''
 
         # Flag to indicate whether the module requires explicit user acceptance for install/update
         # RequireLicenseAcceptance = $false

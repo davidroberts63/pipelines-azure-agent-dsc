@@ -3,13 +3,13 @@ class PipelinesAzureAgent {
     [DscProperty(Key)]
     [String] $Name
 
-    [DscProperty(Mandatory)]
+    [DscProperty(Mandatory, Key)]
     [String] $DevOpsInstanceURL
 
     [DscProperty(Mandatory)]
     [String] $DevOpsInstanceName
 
-    [DscProperty(Mandatory)]
+    [DscProperty(Mandatory, Key)]
     [String] $PoolName
 
     [DscProperty()]
@@ -24,8 +24,17 @@ class PipelinesAzureAgent {
     [DscProperty()]
     [PSCredential] $Token
 
-    [DscProperty()]
+    [DscProperty(Mandatory)]
     [String] $AgentDownloadUrl
+
+    [DscProperty()]
+    [Boolean] $RunAsService
+
+    [DscProperty()]
+    [Boolean] $RunAsAutoLogon
+
+    [DscProperty()]
+    [PScredential] $WindowsLogonAccount
 
     [PipelinesAzureAgent] Get()
     {
@@ -35,14 +44,18 @@ class PipelinesAzureAgent {
         $agents = Get-CimInstance -ClassName win32_Service -Filter "Name LIKE 'vstsagent.%'"
         Write-Verbose "Found $($agents.Name -join ',')"
 
+        Write-Verbose "Looking for [$($this.DevOpsInstanceName)] [$($this.PoolName)] [$($this.Name)]"
         $thisOne = $agents | Where-Object {
             $parts = $_.Name -split '\.' # Windows service name is 'vstsagent.[devops instance name].[agent name]
-            return $parts[1] -eq $DevOpsInstanceName -and $parts[2] -eq $Name
+            Write-Verbose "Checking against [$($parts[1])] [$($parts[2])] [$($parts[3])]"
+            return $parts[1] -eq $this.DevOpsInstanceName -and $parts[2] -eq $this.PoolName -and $parts[3] -eq $this.Name
         }
+
 
         if($thisOne) {
             Write-Verbose 'Found this agent'
             Write-Verbose 'Getting agent config data'
+            # Agent configuration data is in [Path to agent folder]\.agent file. It is a hidden file.
             $base = Split-Path $thisOne.PathName.Replace('"','') -Parent
             $parent = Split-Path $base -Parent
             $agentConfigPath = Join-Path $parent '.agent'
@@ -73,22 +86,43 @@ class PipelinesAzureAgent {
         Expand-Archive -LiteralPath $agentZipPath -DestinationPath $agentPath -Force
         Remove-Item $agentZipPath -Force
 
-        Write-Verbose 'Configuring agent'
+        Write-Verbose 'Building configuration arguments'
         $cmdArgs = @(
-            '--sslcacert', $this.CertificateBundlePath,
             '--url', $this.DevOpsInstanceURL,
             '--pool', "`"$($this.PoolName)`"",
             '--replace',
             '--agent', $this.Name,
             '--auth', $this.Authentication,
-            '--runAsService',
             '--unattended'
         )
 
+        if($this.CertificateBundlePath) {
+            $cmdArgs += '--sslcacert', $this.CertificateBundlePath
+        }
+        if($this.WindowsLogonAccount) {
+            $cmdArgs += '--windowsLogonAccount', $this.WindowsLogonAccount.Username
+        }
+        if($this.RunAsService) {
+            $cmdArgs += '--runAsService'
+        }
+        if($this.RunAsAutoLogon) {
+            $cmdArgs += '--runAsAutoLogon'
+        }
+
         $cmdArgs | ConvertTo-Json | Out-String | Write-Verbose
-        $cmdArgs += '--token', $this.Token.GetNetworkCredential().Password # Exclude sensitive data from logs.
+
+        # Exclude sensitive data from logs.
+        if($this.Authentication -eq 'pat') {
+            $cmdArgs += '--token', $this.Token.GetNetworkCredential().Password
+        }
+        if($this.WindowsLogonAccount) {
+            $cmdArgs += '--windowsLogonPassword', $this.WindowsLogonAccount.GetNetworkCredential().Password
+        }
+        # End of sensitive data exclusion from logs.
+
         $cmdArgs += '2>&1' # Redirect the errors to the standard output for capturing and logging.
 
+        Write-Verbose 'Configuring agent'
         $outputLogPath = (Join-Path $ENV:TEMP ([System.GUID]::NewGuid().Guid)) + '.txt'
         Start-Process -FilePath $AgentPath/config.cmd -ArgumentList $cmdArgs -Wait -NoNewWindow -RedirectStandardOutput $outputLogPath
         Get-Content -Path $outputLogPath | Write-Verbose
