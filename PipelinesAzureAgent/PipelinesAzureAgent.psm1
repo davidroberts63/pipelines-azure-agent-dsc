@@ -44,10 +44,13 @@ class PipelinesAzureAgent {
         $agents = Get-CimInstance -ClassName win32_Service -Filter "Name LIKE 'vstsagent.%'"
         Write-Verbose "Found $($agents.Name -join ',')"
 
+        Write-Verbose "Looking for [$($this.DevOpsInstanceName)] [$($this.PoolName)] [$($this.Name)]"
         $thisOne = $agents | Where-Object {
             $parts = $_.Name -split '\.' # Windows service name is 'vstsagent.[devops instance name].[agent name]
-            return $parts[1] -eq $DevOpsInstanceName -and $parts[2] -eq $PoolName -and $parts[3] -eq $Name
+            Write-Verbose "Checking against [$($parts[1])] [$($parts[2])] [$($parts[3])]"
+            return $parts[1] -eq $this.DevOpsInstanceName -and $parts[2] -eq $this.PoolName -and $parts[3] -eq $this.Name
         }
+
 
         if($thisOne) {
             Write-Verbose 'Found this agent'
